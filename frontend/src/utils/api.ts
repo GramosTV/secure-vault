@@ -1,5 +1,6 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { AuthResponse, ApiError } from '../types';
+import axios from 'axios';
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { AuthResponse, ApiError } from '../types';
 
 class ApiClient {
   private client: AxiosInstance;
