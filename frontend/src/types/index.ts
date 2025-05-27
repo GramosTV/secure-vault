@@ -2,7 +2,8 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  roles: string[];
+  roles?: string[];
+  createdAt?: string;
 }
 
 export interface LoginRequest {
