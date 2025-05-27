@@ -115,11 +115,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }
   }, []);
-
   const login = async (credentials: LoginRequest): Promise<void> => {
     dispatch({ type: 'AUTH_START' });
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+      const response = await apiClient.post<AuthResponse>('/auth/signin', credentials);
 
       // Store auth data
       localStorage.setItem('authToken', response.token);
@@ -141,11 +140,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw error;
     }
   };
-
   const register = async (userData: RegisterRequest): Promise<void> => {
     dispatch({ type: 'AUTH_START' });
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', userData);
+      const response = await apiClient.post<AuthResponse>('/auth/signup', userData);
 
       // Store auth data
       localStorage.setItem('authToken', response.token);
@@ -160,9 +158,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       });
     } catch (error: any) {
+      // Get more specific error message
+      let errorMessage = 'Registration failed';
+
+      if (error.response) {
+        // Server responded with an error
+        if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.status === 400) {
+          errorMessage = 'Invalid form data. Please check all fields and try again.';
+        } else if (error.response.status === 401) {
+          errorMessage = 'Unauthorized access. Please check your credentials.';
+        } else if (error.response.status === 409) {
+          errorMessage = 'Username or email already exists.';
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       dispatch({
         type: 'AUTH_FAILURE',
-        payload: error.message || 'Registration failed',
+        payload: errorMessage,
       });
       throw error;
     }
