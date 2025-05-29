@@ -8,9 +8,6 @@ import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Simple test to verify ChaCha20 encryption/decryption works
- */
 @Component
 public class ChaCha20Test implements CommandLineRunner {
 
@@ -24,8 +21,7 @@ public class ChaCha20Test implements CommandLineRunner {
         try {
             logger.info("Testing ChaCha20 encryption/decryption...");
             String testMessage = "Hello ChaCha20! This is a test message.";
-            // Use a proper 32-byte Base64-encoded key for ChaCha20
-            String testKey = "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI="; // Base64 encoded 32-byte key
+            String testKey = "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=";
 
             // Test encryption
             EncryptionService.EncryptionResult encrypted = encryptionService.encrypt(
@@ -33,7 +29,8 @@ public class ChaCha20Test implements CommandLineRunner {
 
             logger.info("Original message: {}", testMessage);
             logger.info("Encrypted content: {}", encrypted.getEncryptedContent());
-            logger.info("IV: {}", encrypted.getInitializationVector()); // Test decryption
+            logger.info("IV: {}", encrypted.getInitializationVector());
+
             String decrypted = encryptionService.decrypt(
                     encrypted.getEncryptedContent(),
                     testKey,

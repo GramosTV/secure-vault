@@ -1,13 +1,3 @@
-/**
- * Utility functions for debugging encryption issues
- */
-
-/**
- * Safely prints key information for debugging without revealing the entire key
- * @param key - The Base64 encoded key to debug
- * @param algorithm - The encryption algorithm this key is for
- * @returns A safe debug string with key details
- */
 export const debugKey = (key: string, algorithm: 'AES' | 'DES' | 'CHACHA20'): string => {
   try {
     // First, try to decode the key from Base64
@@ -28,12 +18,6 @@ export const debugKey = (key: string, algorithm: 'AES' | 'DES' | 'CHACHA20'): st
   }
 };
 
-/**
- * Tests whether two keys are identical
- * @param key1 - First key to compare
- * @param key2 - Second key to compare
- * @returns Whether the keys are identical
- */
 export const compareKeys = (key1: string, key2: string): boolean => {
   try {
     // Decode both keys
@@ -61,13 +45,7 @@ export const compareKeys = (key1: string, key2: string): boolean => {
   }
 };
 
-/**
- * Debug ChaCha20 key format issues
- * @param key - The ChaCha20 key to debug
- * @returns Information about key format issues
- */
 export const debugChaCha20Key = (key: string): string => {
-  // Try to decode as Base64
   let isValidBase64 = false;
   let decodedLength = 0;
 

@@ -12,7 +12,6 @@ import {
   getKeyValidationMessage,
   isValidBase64Key,
 } from '../../utils/encryptionKeys';
-import { debugKey } from '../../utils/encryption-debug';
 
 interface EncryptionFormProps {
   onEncryptionSuccess?: (message: EncryptedMessage) => void;
@@ -40,11 +39,11 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
       key: '',
     },
   });
-
   const watchedContent = watch('content', '');
   const watchedKey = watch('key', '');
   const watchedAlgorithm = watch('algorithm', 'AES');
-  const contentLength = watchedContent.length; // Update key validation when key or algorithm changes
+  const contentLength = watchedContent.length;
+
   React.useEffect(() => {
     if (watchedKey) {
       const validation = getKeyValidationMessage(watchedAlgorithm, watchedKey);
@@ -52,7 +51,7 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
     } else {
       setKeyValidationMessage(null);
     }
-  }, [watchedKey, watchedAlgorithm]); // Key generation functions
+  }, [watchedKey, watchedAlgorithm]);
   const generateKey = () => {
     let newKey = '';
     switch (watchedAlgorithm) {
@@ -129,31 +128,18 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
       return;
     }
     try {
-      // Prepare the key based on algorithm
-      let processedKey = data.key; // For AES, ensure the key is properly formatted as Base64
+      let processedKey = data.key;
       if (data.algorithm === 'AES') {
-        // If it's not already a valid Base64 key, convert text to AES key
         if (!isValidBase64Key(data.key)) {
           processedKey = textToAESKey(data.key, 256);
         }
-      }
-      // For DES, ensure the key is properly formatted as Base64
-      else if (data.algorithm === 'DES') {
-        // If it's not already a valid Base64 key, convert text to DES key
+      } else if (data.algorithm === 'DES') {
         if (!isValidBase64Key(data.key, 'DES')) {
           processedKey = textToDESKey(data.key);
-          console.log('Generated DES key for encryption:', debugKey(processedKey, 'DES'));
-        } else {
-          console.log('Using provided Base64 DES key:', debugKey(data.key, 'DES'));
         }
-      } // For ChaCha20, ensure the key is properly formatted as Base64
-      else if (data.algorithm === 'CHACHA20') {
-        // If it's not already a valid Base64 key, convert text to ChaCha20 key
+      } else if (data.algorithm === 'CHACHA20') {
         if (!isValidBase64Key(data.key, 'CHACHA20')) {
           processedKey = textToChaCha20Key(data.key);
-          console.log('Generated ChaCha20 key for encryption:', debugKey(processedKey, 'CHACHA20'));
-        } else {
-          console.log('Using provided Base64 ChaCha20 key:', debugKey(data.key, 'CHACHA20'));
         }
       }
       // Transform the request to match backend expectations

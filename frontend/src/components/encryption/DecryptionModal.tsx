@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import type { EncryptedMessage } from '../../types';
 import apiClient from '../../utils/api';
 import { textToAESKey, textToDESKey, textToChaCha20Key, isValidBase64Key } from '../../utils/encryptionKeys';
-import { debugKey } from '../../utils/encryption-debug';
 
 interface DecryptionModalProps {
   message: EncryptedMessage | null;
@@ -15,57 +14,26 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
   const [error, setError] = useState<string | null>(null);
   const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
   const [decryptionKey, setDecryptionKey] = useState('');
-
   const handleDecrypt = async () => {
     if (!message) return;
 
     setIsLoading(true);
-    setError(null); // Declare processedKey outside the try block so it's accessible in the catch block
+    setError(null);
     let processedKey = decryptionKey;
     let requestData: { messageId: number; key: string } | null = null;
 
     try {
-      // Process the key based on algorithm (same logic as encryption)      // For AES, ensure the key is properly formatted as Base64
       if (message.algorithm === 'AES') {
-        // If it's not already a valid Base64 key, convert text to AES key
         if (!isValidBase64Key(decryptionKey)) {
           processedKey = textToAESKey(decryptionKey, 256);
         }
-      } // For DES, if it's not already a valid Base64 key, we need to convert it
-      else if (message.algorithm === 'DES') {
+      } else if (message.algorithm === 'DES') {
         if (!isValidBase64Key(decryptionKey, 'DES')) {
-          // Use our utility function for consistent DES key generation
           processedKey = textToDESKey(decryptionKey);
-          console.log('Generated DES key from text:', debugKey(processedKey, 'DES'));
-        } else {
-          console.log('Using provided Base64 DES key:', debugKey(decryptionKey, 'DES'));
-          // Validate that the key decodes to exactly 8 bytes
-          try {
-            const binary = atob(decryptionKey);
-            if (binary.length !== 8) {
-              console.warn(`Provided DES key has ${binary.length} bytes instead of required 8 bytes`);
-            }
-          } catch (e) {
-            console.error('Error validating DES key:', e);
-          }
         }
-      } // For ChaCha20, process the key to ensure it's in the correct format
-      else if (message.algorithm === 'CHACHA20') {
+      } else if (message.algorithm === 'CHACHA20') {
         if (!isValidBase64Key(decryptionKey, 'CHACHA20')) {
-          // Use our utility function for consistent ChaCha20 key generation
           processedKey = textToChaCha20Key(decryptionKey);
-          console.log('Generated ChaCha20 key from text:', debugKey(processedKey, 'CHACHA20'));
-        } else {
-          console.log('Using provided Base64 ChaCha20 key:', debugKey(decryptionKey, 'CHACHA20'));
-          // Validate that the key decodes to exactly 32 bytes
-          try {
-            const binary = atob(decryptionKey);
-            if (binary.length !== 32) {
-              console.warn(`Provided ChaCha20 key has ${binary.length} bytes instead of required 32 bytes`);
-            }
-          } catch (e) {
-            console.error('Error validating ChaCha20 key:', e);
-          }
         }
       }
 
@@ -77,15 +45,10 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
       const response = await apiClient.post<{ decryptedMessage: string }>('/decrypt', requestData);
       setDecryptedContent(response.decryptedMessage);
     } catch (err: any) {
-      console.error('Decryption error:', err);
-      if (requestData) {
-        console.error('Request data sent:', requestData);
-      }
       let errorMessage = 'Failed to decrypt message';
 
-      // The API client transforms errors to ApiError format
       if (err.message) {
-        errorMessage = err.message; // Add specific helpful messages for common errors
+        errorMessage = err.message;
         if (message.algorithm === 'DES' && errorMessage.includes('padding error')) {
           errorMessage = `${errorMessage}\n\nTry clicking the "Pre-process Key" button to format your key correctly for DES decryption.`;
         } else if (message.algorithm === 'CHACHA20') {
@@ -93,19 +56,6 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
             errorMessage = `${errorMessage}\n\nTry clicking the "Pre-process Key" button to format your key correctly for ChaCha20 decryption.`;
           }
         }
-      } else if (err.message) {
-        errorMessage = err.message;
-      } // Log detailed debugging info
-      if (message.algorithm === 'DES') {
-        console.error('DES decryption error details:', {
-          key: debugKey(processedKey, 'DES'),
-          error: err,
-        });
-      } else if (message.algorithm === 'CHACHA20') {
-        console.error('ChaCha20 decryption error details:', {
-          key: debugKey(processedKey, 'CHACHA20'),
-          error: err,
-        });
       }
 
       setError(errorMessage);
@@ -245,13 +195,8 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
                                     type="button"
                                     className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded"
                                     onClick={() => {
-                                      // Convert the text input to a DES key format, which will ensure consistent processing
                                       const processedKey = textToDESKey(decryptionKey);
                                       setDecryptionKey(processedKey);
-                                      console.log(
-                                        'Pre-processed DES key for decryption:',
-                                        debugKey(processedKey, 'DES')
-                                      );
                                     }}
                                   >
                                     Pre-process Key
@@ -267,13 +212,8 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
                                     type="button"
                                     className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded"
                                     onClick={() => {
-                                      // Convert the text input to a ChaCha20 key format, which will ensure consistent processing
                                       const processedKey = textToChaCha20Key(decryptionKey);
                                       setDecryptionKey(processedKey);
-                                      console.log(
-                                        'Pre-processed ChaCha20 key for decryption:',
-                                        debugKey(processedKey, 'CHACHA20')
-                                      );
                                     }}
                                   >
                                     Pre-process Key

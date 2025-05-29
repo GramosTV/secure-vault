@@ -58,7 +58,6 @@ public class EncryptionService {
     }
 
     private EncryptionResult encryptAES(String message, String keyString) throws Exception {
-        // Generate or use provided key
         SecretKey secretKey;
         if (keyString == null || keyString.isEmpty()) {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
@@ -73,7 +72,6 @@ public class EncryptionService {
                         "Invalid key format. The AES key must be Base64 encoded. Error: " + e.getMessage());
             }
 
-            // Validate AES key length
             if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
                 throw new IllegalArgumentException(
                         "Invalid AES key length. AES keys must be 16, 24, or 32 bytes (128, 192, or 256 bits). Provided key is "
@@ -82,14 +80,11 @@ public class EncryptionService {
 
             secretKey = new SecretKeySpec(keyBytes, "AES");
         }
-
-        // Generate random IV
         SecureRandom random = new SecureRandom();
         byte[] iv = new byte[16];
         random.nextBytes(iv);
         IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-        // Encrypt
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
         byte[] encryptedBytes = cipher.doFinal(message.getBytes());
@@ -113,8 +108,6 @@ public class EncryptionService {
             throw new IllegalArgumentException(
                     "Invalid format for key, IV, or encrypted content. All must be Base64 encoded.");
         }
-
-        // Validate AES key length
         if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
             throw new IllegalArgumentException(
                     "Invalid AES key length. AES keys must be 16, 24, or 32 bytes (128, 192, or 256 bits). Provided key is "
@@ -136,10 +129,8 @@ public class EncryptionService {
     }
 
     private EncryptionResult encryptChaCha20(String message, String keyString) throws Exception {
-        // Generate or use provided key
         byte[] keyBytes;
         if (keyString == null || keyString.isEmpty()) {
-            // Generate a 32-byte (256-bit) key for ChaCha20
             SecureRandom random = new SecureRandom();
             keyBytes = new byte[32];
             random.nextBytes(keyBytes);
@@ -151,7 +142,6 @@ public class EncryptionService {
                         "Invalid key format. The ChaCha20 key must be Base64 encoded. Error: " + e.getMessage());
             }
 
-            // Validate ChaCha20 key length (must be 32 bytes)
             if (keyBytes.length != 32) {
                 throw new IllegalArgumentException(
                         "Invalid ChaCha20 key length. ChaCha20 keys must be exactly 32 bytes (256 bits). Provided key is "
@@ -159,19 +149,14 @@ public class EncryptionService {
             }
         }
 
-        // Generate random 12-byte nonce for ChaCha20
         SecureRandom random = new SecureRandom();
         byte[] nonce = new byte[12];
         random.nextBytes(nonce);
+        ChaCha7539Engine engine = new ChaCha7539Engine();
+        KeyParameter keyParam = new KeyParameter(keyBytes);
+        ParametersWithIV params = new ParametersWithIV(keyParam, nonce);
 
-        // Use Bouncy Castle ChaCha20 engine directly for better compatibility
-        org.bouncycastle.crypto.engines.ChaCha7539Engine engine = new org.bouncycastle.crypto.engines.ChaCha7539Engine();
-        org.bouncycastle.crypto.params.KeyParameter keyParam = new org.bouncycastle.crypto.params.KeyParameter(
-                keyBytes);
-        org.bouncycastle.crypto.params.ParametersWithIV params = new org.bouncycastle.crypto.params.ParametersWithIV(
-                keyParam, nonce);
-
-        engine.init(true, params); // true for encryption
+        engine.init(true, params);
 
         byte[] messageBytes = message.getBytes("UTF-8");
         byte[] encryptedBytes = new byte[messageBytes.length];
@@ -196,27 +181,21 @@ public class EncryptionService {
             throw new IllegalArgumentException(
                     "Invalid format for key, nonce, or encrypted content. All must be Base64 encoded.");
         }
-
-        // Validate ChaCha20 key length
         if (keyBytes.length != 32) {
             throw new IllegalArgumentException(
                     "Invalid ChaCha20 key length. ChaCha20 keys must be exactly 32 bytes (256 bits). Provided key is "
                             + keyBytes.length + " bytes.");
         }
 
-        // Validate nonce length for ChaCha20
         if (nonceBytes.length != 12) {
             throw new IllegalArgumentException("Invalid nonce length. ChaCha20 nonce must be 12 bytes (96 bits).");
         }
 
-        // Use Bouncy Castle ChaCha20 engine directly for better compatibility
-        org.bouncycastle.crypto.engines.ChaCha7539Engine engine = new org.bouncycastle.crypto.engines.ChaCha7539Engine();
-        org.bouncycastle.crypto.params.KeyParameter keyParam = new org.bouncycastle.crypto.params.KeyParameter(
-                keyBytes);
-        org.bouncycastle.crypto.params.ParametersWithIV params = new org.bouncycastle.crypto.params.ParametersWithIV(
-                keyParam, nonceBytes);
+        ChaCha7539Engine engine = new ChaCha7539Engine();
+        KeyParameter keyParam = new KeyParameter(keyBytes);
+        ParametersWithIV params = new ParametersWithIV(keyParam, nonceBytes);
 
-        engine.init(false, params); // false for decryption
+        engine.init(false, params);
 
         byte[] decryptedBytes = new byte[encryptedBytes.length];
         engine.processBytes(encryptedBytes, 0, encryptedBytes.length, decryptedBytes, 0);
@@ -247,7 +226,6 @@ public class EncryptionService {
             secretKey = new SecretKeySpec(keyBytes, "DES");
         }
 
-        // Generate random IV
         SecureRandom random = new SecureRandom();
         byte[] iv = new byte[8];
         random.nextBytes(iv);
