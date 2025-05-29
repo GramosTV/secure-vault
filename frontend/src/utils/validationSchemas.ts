@@ -51,7 +51,7 @@ export const encryptionSchema = yup.object({
   algorithm: yup
     .string()
     .required('Please select an encryption algorithm')
-    .oneOf(['AES', 'RSA', 'DES'], 'Invalid encryption algorithm'),
+    .oneOf(['AES', 'CHACHA20', 'DES'], 'Invalid encryption algorithm'),
 });
 
 export const decryptionSchema = yup.object({

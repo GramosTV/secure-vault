@@ -1,15 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import EncryptionForm from '../components/encryption/EncryptionForm';
 import MessageList from '../components/encryption/MessageList';
+import DecryptionModal from '../components/encryption/DecryptionModal';
 import type { EncryptedMessage } from '../types';
 
 const EncryptionPage: React.FC = () => {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<EncryptedMessage | null>(null);
+  const [isDecryptionModalOpen, setIsDecryptionModalOpen] = useState(false);
+  const [refreshMessageList, setRefreshMessageList] = useState<(() => void) | null>(null);
+
   const handleEncryptionSuccess = (_newMessage: EncryptedMessage) => {
     // Successfully encrypted a message
     setError(null);
+    // Refresh the message list
+    if (refreshMessageList) {
+      refreshMessageList();
+    }
+  };
+
+  const handleRefresh = useCallback((refreshFn: () => void) => {
+    setRefreshMessageList(() => refreshFn);
+  }, []);
+
+  const handleDecryptRequest = (message: EncryptedMessage) => {
+    setSelectedMessage(message);
+    setIsDecryptionModalOpen(true);
+  };
+
+  const handleCloseDecryptionModal = () => {
+    setIsDecryptionModalOpen(false);
+    setSelectedMessage(null);
   };
 
   return (
@@ -37,12 +60,11 @@ const EncryptionPage: React.FC = () => {
               <h2 className="text-2xl font-semibold text-gray-900 mb-6">Encrypt New Message</h2>
               <EncryptionForm onEncryptionSuccess={handleEncryptionSuccess} />
             </div>
-          </div>
-
+          </div>{' '}
           <div>
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-2xl font-semibold text-gray-900 mb-6">Your Encrypted Messages</h2>
-              <MessageList />
+              <MessageList onDecryptRequest={handleDecryptRequest} onRefresh={handleRefresh} />
             </div>
           </div>
         </div>
@@ -88,14 +110,17 @@ const EncryptionPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Multiple Algorithms</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Multiple Algorithms</h3>{' '}
               <p className="text-gray-600 text-sm">
-                Choose from AES, RSA, and DES encryption based on your security and performance needs.
+                Choose from AES, ChaCha20, and DES encryption based on your security and performance needs.
               </p>
             </div>
-          </div>
+          </div>{' '}
         </div>
       </div>
+
+      {/* Decryption Modal */}
+      <DecryptionModal message={selectedMessage} isOpen={isDecryptionModalOpen} onClose={handleCloseDecryptionModal} />
     </div>
   );
 };

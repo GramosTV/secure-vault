@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RegisterRequest } from '../../types'; // Assuming RegisterRequest type exists
 import { registerSchema } from '../../utils/validationSchemas'; // Assuming registerSchema exists
@@ -13,6 +14,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register: registerUser, error, isLoading, clearError } = useAuth(); // Renamed register to avoid conflict
+  const navigate = useNavigate();
 
   const {
     register,
@@ -28,6 +30,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
       clearError();
       await registerUser(data);
       reset();
+      // Redirect to home page after successful registration
+      navigate('/');
       onSuccess?.();
     } catch (error) {
       // Error is handled by the context

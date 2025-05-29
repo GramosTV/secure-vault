@@ -5,9 +5,10 @@ import MessageCard from './MessageCard';
 
 interface MessageListProps {
   onDecryptRequest?: (message: EncryptedMessage) => void;
+  onRefresh?: (refreshFn: () => void) => void;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
+const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest, onRefresh }) => {
   const [messages, setMessages] = useState<EncryptedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +19,12 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
   useEffect(() => {
     fetchMessages();
   }, [currentPage, searchTerm]);
-
+  useEffect(() => {
+    // Pass the refresh function to parent on mount only once
+    if (onRefresh) {
+      onRefresh(fetchMessages);
+    }
+  }, []); // Remove onRefresh from dependencies to prevent infinite loop
   const fetchMessages = async () => {
     setLoading(true);
     setError(null);
@@ -40,7 +46,6 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
       setLoading(false);
     }
   };
-
   const handleDelete = async (messageId: number) => {
     if (!window.confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
       return;
@@ -84,6 +89,7 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {' '}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
@@ -94,12 +100,16 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
           <form onSubmit={handleSearch} className="flex space-x-2">
             <input
               type="text"
-              placeholder="Search messages..."
+              placeholder="Search by title..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-field max-w-xs"
             />
-            <button type="submit" className="btn-primary px-4">
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
+              title="Search messages by title"
+            >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -112,7 +122,6 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
           </form>
         </div>
       </div>
-
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center">
@@ -127,7 +136,6 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
           </div>
         </div>
       )}
-
       {messages.length === 0 ? (
         <div className="text-center py-12">
           <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -137,15 +145,18 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
               strokeWidth={2}
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
-          </svg>
+          </svg>{' '}
           <h3 className="text-lg font-medium text-gray-900 mb-2">No messages found</h3>
           <p className="text-gray-600 mb-6">
             {searchTerm
-              ? `No messages match "${searchTerm}". Try a different search term.`
+              ? `No messages match "${searchTerm}". Try a different search term or check the spelling.`
               : "You haven't encrypted any messages yet."}
           </p>
           {!searchTerm && (
-            <a href="/encrypt" className="btn-primary">
+            <a
+              href="/encrypt"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
+            >
               Encrypt Your First Message
             </a>
           )}
@@ -206,7 +217,6 @@ const MessageList: React.FC<MessageListProps> = ({ onDecryptRequest }) => {
           )}
         </>
       )}
-
       {loading && (
         <div className="flex justify-center py-4">
           <svg className="animate-spin h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">

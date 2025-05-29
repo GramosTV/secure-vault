@@ -37,12 +37,20 @@ export interface EncryptedMessage {
 export interface EncryptionRequest {
   title: string;
   content: string;
-  algorithm: 'AES' | 'RSA' | 'DES';
+  key: string; // Added encryption key field
+  algorithm: 'AES' | 'CHACHA20' | 'DES';
+}
+
+// Backend compatible encryption request
+export interface BackendEncryptionRequest {
+  message: string;
+  key: string;
+  algorithm: 'AES' | 'CHACHA20' | 'DES';
 }
 
 export interface DecryptionRequest {
   messageId: number;
-  password?: string;
+  key: string;
 }
 
 export interface DecryptionResponse {

@@ -114,8 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('user');
       }
     }
-  }, []);
-  const login = async (credentials: LoginRequest): Promise<void> => {
+  }, []);  const login = async (credentials: LoginRequest): Promise<void> => {
     dispatch({ type: 'AUTH_START' });
     try {
       const response = await apiClient.post<AuthResponse>('/auth/signin', credentials);
@@ -139,8 +138,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       throw error;
     }
-  };
-  const register = async (userData: RegisterRequest): Promise<void> => {
+  };  const register = async (userData: RegisterRequest): Promise<void> => {
     dispatch({ type: 'AUTH_START' });
     try {
       const response = await apiClient.post<AuthResponse>('/auth/signup', userData);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import type { LoginRequest } from '../../types';
 import { loginSchema } from '../../utils/validationSchemas';
@@ -12,6 +13,7 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const { login, error, isLoading, clearError } = useAuth();
+  const navigate = useNavigate();
 
   const {
     register,
@@ -27,6 +29,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       clearError();
       await login(data);
       reset();
+      // Redirect to home page after successful login
+      navigate('/');
       onSuccess?.();
     } catch (error) {
       // Error is handled by the context

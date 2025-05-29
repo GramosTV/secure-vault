@@ -19,12 +19,11 @@ const MessageCard: React.FC<MessageCardProps> = ({ message, onDecrypt, onDelete 
       minute: '2-digit',
     });
   };
-
   const getAlgorithmColor = (algorithm: string) => {
     switch (algorithm) {
       case 'AES':
         return 'bg-blue-100 text-blue-800';
-      case 'RSA':
+      case 'CHACHA20':
         return 'bg-green-100 text-green-800';
       case 'DES':
         return 'bg-yellow-100 text-yellow-800';
@@ -32,7 +31,6 @@ const MessageCard: React.FC<MessageCardProps> = ({ message, onDecrypt, onDelete 
         return 'bg-gray-100 text-gray-800';
     }
   };
-
   const truncateContent = (content: string, maxLength: number = 100) => {
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
@@ -133,7 +131,10 @@ const MessageCard: React.FC<MessageCardProps> = ({ message, onDecrypt, onDelete 
 
       {/* Always visible action buttons for mobile */}
       <div className="mt-4 flex space-x-3 sm:hidden">
-        <button onClick={onDecrypt} className="flex-1 btn-primary text-sm">
+        <button
+          onClick={onDecrypt}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200 text-sm"
+        >
           <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"

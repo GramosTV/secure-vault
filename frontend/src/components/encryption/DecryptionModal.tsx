@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import type { EncryptedMessage, DecryptionResponse } from '../../types';
+import type { EncryptedMessage } from '../../types';
 import apiClient from '../../utils/api';
+import { textToAESKey, textToDESKey, textToChaCha20Key, isValidBase64Key } from '../../utils/encryptionKeys';
+import { debugKey } from '../../utils/encryption-debug';
 
 interface DecryptionModalProps {
   message: EncryptedMessage | null;
@@ -12,24 +14,101 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
+  const [decryptionKey, setDecryptionKey] = useState('');
 
   const handleDecrypt = async () => {
     if (!message) return;
 
     setIsLoading(true);
-    setError(null);
+    setError(null); // Declare processedKey outside the try block so it's accessible in the catch block
+    let processedKey = decryptionKey;
+    let requestData: { messageId: number; key: string } | null = null;
 
     try {
-      const requestData = {
+      // Process the key based on algorithm (same logic as encryption)      // For AES, ensure the key is properly formatted as Base64
+      if (message.algorithm === 'AES') {
+        // If it's not already a valid Base64 key, convert text to AES key
+        if (!isValidBase64Key(decryptionKey)) {
+          processedKey = textToAESKey(decryptionKey, 256);
+        }
+      } // For DES, if it's not already a valid Base64 key, we need to convert it
+      else if (message.algorithm === 'DES') {
+        if (!isValidBase64Key(decryptionKey, 'DES')) {
+          // Use our utility function for consistent DES key generation
+          processedKey = textToDESKey(decryptionKey);
+          console.log('Generated DES key from text:', debugKey(processedKey, 'DES'));
+        } else {
+          console.log('Using provided Base64 DES key:', debugKey(decryptionKey, 'DES'));
+          // Validate that the key decodes to exactly 8 bytes
+          try {
+            const binary = atob(decryptionKey);
+            if (binary.length !== 8) {
+              console.warn(`Provided DES key has ${binary.length} bytes instead of required 8 bytes`);
+            }
+          } catch (e) {
+            console.error('Error validating DES key:', e);
+          }
+        }
+      } // For ChaCha20, process the key to ensure it's in the correct format
+      else if (message.algorithm === 'CHACHA20') {
+        if (!isValidBase64Key(decryptionKey, 'CHACHA20')) {
+          // Use our utility function for consistent ChaCha20 key generation
+          processedKey = textToChaCha20Key(decryptionKey);
+          console.log('Generated ChaCha20 key from text:', debugKey(processedKey, 'CHACHA20'));
+        } else {
+          console.log('Using provided Base64 ChaCha20 key:', debugKey(decryptionKey, 'CHACHA20'));
+          // Validate that the key decodes to exactly 32 bytes
+          try {
+            const binary = atob(decryptionKey);
+            if (binary.length !== 32) {
+              console.warn(`Provided ChaCha20 key has ${binary.length} bytes instead of required 32 bytes`);
+            }
+          } catch (e) {
+            console.error('Error validating ChaCha20 key:', e);
+          }
+        }
+      }
+
+      requestData = {
         messageId: message.id,
-        password: password || undefined,
+        key: processedKey,
       };
 
-      const response = await apiClient.post<DecryptionResponse>('/messages/decrypt', requestData);
-      setDecryptedContent(response.decryptedContent);
+      const response = await apiClient.post<{ decryptedMessage: string }>('/decrypt', requestData);
+      setDecryptedContent(response.decryptedMessage);
     } catch (err: any) {
-      setError(err.message || 'Failed to decrypt message');
+      console.error('Decryption error:', err);
+      if (requestData) {
+        console.error('Request data sent:', requestData);
+      }
+      let errorMessage = 'Failed to decrypt message';
+
+      // The API client transforms errors to ApiError format
+      if (err.message) {
+        errorMessage = err.message; // Add specific helpful messages for common errors
+        if (message.algorithm === 'DES' && errorMessage.includes('padding error')) {
+          errorMessage = `${errorMessage}\n\nTry clicking the "Pre-process Key" button to format your key correctly for DES decryption.`;
+        } else if (message.algorithm === 'CHACHA20') {
+          if (errorMessage.includes('key')) {
+            errorMessage = `${errorMessage}\n\nTry clicking the "Pre-process Key" button to format your key correctly for ChaCha20 decryption.`;
+          }
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      } // Log detailed debugging info
+      if (message.algorithm === 'DES') {
+        console.error('DES decryption error details:', {
+          key: debugKey(processedKey, 'DES'),
+          error: err,
+        });
+      } else if (message.algorithm === 'CHACHA20') {
+        console.error('ChaCha20 decryption error details:', {
+          key: debugKey(processedKey, 'CHACHA20'),
+          error: err,
+        });
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -38,7 +117,7 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
   const handleClose = () => {
     setDecryptedContent(null);
     setError(null);
-    setPassword('');
+    setDecryptionKey('');
     onClose();
   };
 
@@ -113,23 +192,31 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
                         </div>
                       )}{' '}
                       <div className="space-y-4">
-                        {message.algorithm === 'AES' && (
-                          <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                              Decryption Password
-                            </label>
-                            <input
-                              type="password"
-                              id="password"
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              className="input-field"
-                              placeholder="Enter decryption password"
-                              autoComplete="current-password"
-                            />
-                          </div>
-                        )}
-
+                        <div>
+                          {' '}
+                          <label htmlFor="decryptionKey" className="block text-sm font-medium text-gray-700 mb-1">
+                            {message.algorithm === 'AES'
+                              ? 'Decryption Password/Key'
+                              : message.algorithm === 'CHACHA20'
+                              ? 'ChaCha20 Key'
+                              : 'Decryption Key'}
+                          </label>
+                          <input
+                            type={message.algorithm === 'AES' ? 'password' : 'text'}
+                            id="decryptionKey"
+                            value={decryptionKey}
+                            onChange={(e) => setDecryptionKey(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            placeholder={
+                              message.algorithm === 'AES'
+                                ? 'Enter your password or Base64 key'
+                                : message.algorithm === 'CHACHA20'
+                                ? 'Enter your ChaCha20 key (Base64)'
+                                : 'Enter your DES key (Base64)'
+                            }
+                            autoComplete={message.algorithm === 'AES' ? 'current-password' : 'off'}
+                          />
+                        </div>{' '}
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                           <div className="flex items-start">
                             <svg
@@ -142,22 +229,68 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
                                 d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
                                 clipRule="evenodd"
                               />
-                            </svg>
+                            </svg>{' '}
                             <div>
+                              {' '}
                               <p className="text-sm text-yellow-700">
                                 {message.algorithm === 'AES'
-                                  ? 'This message requires a password for decryption.'
-                                  : 'This message will be decrypted using your private key.'}
+                                  ? 'This message requires the same password/key used for encryption.'
+                                  : message.algorithm === 'CHACHA20'
+                                  ? 'This message requires the same ChaCha20 key used for encryption.'
+                                  : 'This message requires the same DES key used for encryption.'}
                               </p>
+                              {message.algorithm === 'DES' && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded"
+                                    onClick={() => {
+                                      // Convert the text input to a DES key format, which will ensure consistent processing
+                                      const processedKey = textToDESKey(decryptionKey);
+                                      setDecryptionKey(processedKey);
+                                      console.log(
+                                        'Pre-processed DES key for decryption:',
+                                        debugKey(processedKey, 'DES')
+                                      );
+                                    }}
+                                  >
+                                    Pre-process Key
+                                  </button>
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    Click to format your key for DES decryption
+                                  </span>
+                                </div>
+                              )}{' '}
+                              {message.algorithm === 'CHACHA20' && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded"
+                                    onClick={() => {
+                                      // Convert the text input to a ChaCha20 key format, which will ensure consistent processing
+                                      const processedKey = textToChaCha20Key(decryptionKey);
+                                      setDecryptionKey(processedKey);
+                                      console.log(
+                                        'Pre-processed ChaCha20 key for decryption:',
+                                        debugKey(processedKey, 'CHACHA20')
+                                      );
+                                    }}
+                                  >
+                                    Pre-process Key
+                                  </button>
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    Click to format your key for ChaCha20 decryption
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-
+                        </div>{' '}
                         <button
                           type="button"
                           onClick={handleDecrypt}
-                          disabled={isLoading}
-                          className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={isLoading || !decryptionKey.trim()}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                         >
                           {isLoading ? (
                             <span className="flex items-center justify-center">
@@ -213,9 +346,9 @@ const DecryptionModal: React.FC<DecryptionModalProps> = ({ message, isOpen, onCl
                             readOnly
                             rows={6}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 text-sm resize-none focus:outline-none"
-                          />
+                          />{' '}
                           <button
-                            onClick={() => copyToClipboard(decryptedContent)}
+                            onClick={() => copyToClipboard(decryptedContent || '')}
                             className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-700 transition-colors"
                             title="Copy to clipboard"
                           >

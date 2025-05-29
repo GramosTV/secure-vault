@@ -104,41 +104,6 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
           </div>
-
-          <div className="mt-8 bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Security Settings</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                <div>
-                  <h3 className="text-lg font-medium text-green-900">Two-Factor Authentication</h3>
-                  <p className="text-green-700">Add an extra layer of security to your account</p>
-                </div>
-                <button className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out">
-                  Enable
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                <div>
-                  <h3 className="text-lg font-medium text-blue-900">Change Password</h3>
-                  <p className="text-blue-700">Update your account password</p>
-                </div>
-                <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out">
-                  Change
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
-                <div>
-                  <h3 className="text-lg font-medium text-yellow-900">Download Data</h3>
-                  <p className="text-yellow-700">Export your encrypted messages</p>
-                </div>
-                <button className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out">
-                  Export
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

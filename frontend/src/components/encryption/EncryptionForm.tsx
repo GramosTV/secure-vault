@@ -2,6 +2,17 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { EncryptionRequest, EncryptedMessage } from '../../types';
 import apiClient from '../../utils/api';
+import {
+  generateAESKey,
+  generateDESKey,
+  generateChaCha20Key,
+  textToAESKey,
+  textToDESKey,
+  textToChaCha20Key,
+  getKeyValidationMessage,
+  isValidBase64Key,
+} from '../../utils/encryptionKeys';
+import { debugKey } from '../../utils/encryption-debug';
 
 interface EncryptionFormProps {
   onEncryptionSuccess?: (message: EncryptedMessage) => void;
@@ -11,22 +22,87 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [encryptedMessage, setEncryptedMessage] = useState<EncryptedMessage | null>(null);
+  const [keyValidationMessage, setKeyValidationMessage] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
     watch,
+    setValue,
+    getValues,
   } = useForm<EncryptionRequest>({
     defaultValues: {
       algorithm: 'AES' as const,
       title: '',
       content: '',
+      key: '',
     },
   });
 
   const watchedContent = watch('content', '');
-  const contentLength = watchedContent.length;
+  const watchedKey = watch('key', '');
+  const watchedAlgorithm = watch('algorithm', 'AES');
+  const contentLength = watchedContent.length; // Update key validation when key or algorithm changes
+  React.useEffect(() => {
+    if (watchedKey) {
+      const validation = getKeyValidationMessage(watchedAlgorithm, watchedKey);
+      setKeyValidationMessage(validation);
+    } else {
+      setKeyValidationMessage(null);
+    }
+  }, [watchedKey, watchedAlgorithm]); // Key generation functions
+  const generateKey = () => {
+    let newKey = '';
+    switch (watchedAlgorithm) {
+      case 'AES':
+        newKey = generateAESKey(256); // Generate 256-bit AES key
+        break;
+      case 'DES':
+        newKey = generateDESKey();
+        break;
+      case 'CHACHA20':
+        newKey = generateChaCha20Key(); // Generate 256-bit ChaCha20 key
+        break;
+      default:
+        return;
+    }
+    setValue('key', newKey);
+  };
+  const convertTextToKey = () => {
+    const currentKey = getValues('key');
+    if (!currentKey) return;
+
+    let convertedKey = '';
+    switch (watchedAlgorithm) {
+      case 'AES':
+        convertedKey = textToAESKey(currentKey, 256);
+        break;
+      case 'DES':
+        convertedKey = textToDESKey(currentKey);
+        break;
+      case 'CHACHA20':
+        convertedKey = textToChaCha20Key(currentKey);
+        break;
+      default:
+        return;
+    }
+    setValue('key', convertedKey);
+  };
+  const copyKeyToClipboard = async () => {
+    const currentKey = getValues('key');
+    if (!currentKey) return;
+
+    try {
+      await navigator.clipboard.writeText(currentKey);
+      setCopySuccess(true);
+      // Reset the success state after 2 seconds
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy key to clipboard:', err);
+    }
+  };
   const onSubmit = async (data: EncryptionRequest) => {
     setIsLoading(true);
     setError(null);
@@ -42,16 +118,67 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
       setIsLoading(false);
       return;
     }
-    if (!['AES', 'RSA', 'DES'].includes(data.algorithm)) {
+    if (!data.key.trim()) {
+      setError('Encryption key is required');
+      setIsLoading(false);
+      return;
+    }
+    if (!['AES', 'CHACHA20', 'DES'].includes(data.algorithm)) {
       setError('Invalid encryption algorithm');
       setIsLoading(false);
       return;
     }
-
     try {
-      const result = await apiClient.post<EncryptedMessage>('/messages/encrypt', data);
-      setEncryptedMessage(result);
-      onEncryptionSuccess?.(result);
+      // Prepare the key based on algorithm
+      let processedKey = data.key; // For AES, ensure the key is properly formatted as Base64
+      if (data.algorithm === 'AES') {
+        // If it's not already a valid Base64 key, convert text to AES key
+        if (!isValidBase64Key(data.key)) {
+          processedKey = textToAESKey(data.key, 256);
+        }
+      }
+      // For DES, ensure the key is properly formatted as Base64
+      else if (data.algorithm === 'DES') {
+        // If it's not already a valid Base64 key, convert text to DES key
+        if (!isValidBase64Key(data.key, 'DES')) {
+          processedKey = textToDESKey(data.key);
+          console.log('Generated DES key for encryption:', debugKey(processedKey, 'DES'));
+        } else {
+          console.log('Using provided Base64 DES key:', debugKey(data.key, 'DES'));
+        }
+      } // For ChaCha20, ensure the key is properly formatted as Base64
+      else if (data.algorithm === 'CHACHA20') {
+        // If it's not already a valid Base64 key, convert text to ChaCha20 key
+        if (!isValidBase64Key(data.key, 'CHACHA20')) {
+          processedKey = textToChaCha20Key(data.key);
+          console.log('Generated ChaCha20 key for encryption:', debugKey(processedKey, 'CHACHA20'));
+        } else {
+          console.log('Using provided Base64 ChaCha20 key:', debugKey(data.key, 'CHACHA20'));
+        }
+      }
+      // Transform the request to match backend expectations
+      const backendRequest = {
+        title: data.title,
+        message: data.content,
+        algorithm: data.algorithm,
+        key: processedKey, // Using the processed encryption key
+      };
+
+      const response = await apiClient.post<any>('/encrypt', backendRequest);
+
+      // Transform backend response to match frontend expected format
+      const encryptedMessage: EncryptedMessage = {
+        id: response.id,
+        title: data.title, // Save the title from our form
+        encryptedContent: response.encryptedContent,
+        algorithm: data.algorithm,
+        createdAt: response.createdAt || new Date().toISOString(),
+        updatedAt: response.updatedAt || new Date().toISOString(),
+        userId: response.userId,
+      };
+
+      setEncryptedMessage(encryptedMessage);
+      onEncryptionSuccess?.(encryptedMessage);
       reset();
     } catch (err: any) {
       setError(err.message || 'Failed to encrypt message');
@@ -59,7 +186,6 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
       setIsLoading(false);
     }
   };
-
   const algorithmInfo = {
     AES: {
       name: 'AES (Advanced Encryption Standard)',
@@ -67,11 +193,11 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
       security: 'High',
       speed: 'Fast',
     },
-    RSA: {
-      name: 'RSA (Rivest-Shamir-Adleman)',
-      description: 'Asymmetric encryption. More secure but slower, suitable for small data.',
+    CHACHA20: {
+      name: 'ChaCha20 (Stream Cipher)',
+      description: 'Modern symmetric stream cipher. Fast, secure, and designed for high performance.',
       security: 'Very High',
-      speed: 'Slower',
+      speed: 'Very Fast',
     },
     DES: {
       name: 'DES (Data Encryption Standard)',
@@ -114,8 +240,7 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
                   {errors.title.message}
                 </p>
               )}
-            </div>
-
+            </div>{' '}
             <div>
               <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
                 Message Content
@@ -139,8 +264,127 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
                   </p>
                 )}
               </div>
+            </div>{' '}
+            <div>
+              <label htmlFor="key" className="block text-sm font-medium text-gray-700 mb-1">
+                Encryption Key
+              </label>
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    {...register('key')}
+                    type="password"
+                    id="key"
+                    className="input-field pr-32"
+                    placeholder={
+                      watchedAlgorithm === 'AES'
+                        ? 'Enter key or generate Base64 key'
+                        : watchedAlgorithm === 'DES'
+                        ? 'Enter key or generate DES key'
+                        : 'Enter key or generate ChaCha20 key'
+                    }
+                    aria-describedby={errors.key ? 'key-error' : undefined}
+                  />
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex space-x-1">
+                    <button
+                      type="button"
+                      onClick={generateKey}
+                      className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                      title="Generate new key"
+                    >
+                      Generate
+                    </button>{' '}
+                    {watchedKey && (
+                      <button
+                        type="button"
+                        onClick={copyKeyToClipboard}
+                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                          copySuccess ? 'bg-green-500 text-white' : 'bg-gray-500 text-white hover:bg-gray-600'
+                        }`}
+                        title={copySuccess ? 'Copied!' : 'Copy key to clipboard'}
+                      >
+                        {copySuccess ? (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>{' '}
+                {watchedAlgorithm === 'AES' && watchedKey && !isValidBase64Key(watchedKey) && (
+                  <button
+                    type="button"
+                    onClick={convertTextToKey}
+                    className="w-full px-3 py-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors"
+                  >
+                    Convert text to Base64 AES key
+                  </button>
+                )}
+                {watchedAlgorithm === 'CHACHA20' && watchedKey && !isValidBase64Key(watchedKey, 'CHACHA20') && (
+                  <button
+                    type="button"
+                    onClick={convertTextToKey}
+                    className="w-full px-3 py-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors"
+                  >
+                    Convert text to Base64 ChaCha20 key
+                  </button>
+                )}
+                {watchedAlgorithm === 'DES' && watchedKey && !isValidBase64Key(watchedKey, 'DES') && (
+                  <button
+                    type="button"
+                    onClick={convertTextToKey}
+                    className="w-full px-3 py-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors"
+                  >
+                    Convert text to Base64 DES key
+                  </button>
+                )}
+                {keyValidationMessage && (
+                  <div
+                    className={`p-3 rounded-lg text-sm ${
+                      keyValidationMessage.includes('Valid')
+                        ? 'bg-green-50 border border-green-200 text-green-700'
+                        : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
+                    }`}
+                  >
+                    {keyValidationMessage}
+                  </div>
+                )}
+                {errors.key && (
+                  <p id="key-error" className="error-text" role="alert">
+                    {errors.key.message}
+                  </p>
+                )}{' '}
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p>This key will be required to decrypt your message later</p>
+                  {watchedAlgorithm === 'AES' && (
+                    <p className="text-xs">
+                      <strong>AES:</strong> Keys must be Base64-encoded. Use "Generate" for secure keys or "Convert" for
+                      text passwords.
+                    </p>
+                  )}
+                  {watchedAlgorithm === 'DES' && (
+                    <p className="text-xs">
+                      <strong>DES:</strong> Uses 8-byte (64-bit) keys. Click "Generate" for a secure key.
+                    </p>
+                  )}
+                  {watchedAlgorithm === 'CHACHA20' && (
+                    <p className="text-xs">
+                      <strong>ChaCha20:</strong> Uses 32-byte (256-bit) keys. Click "Generate" for a secure key.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Encryption Algorithm</label>
               <div className="space-y-3">
@@ -189,7 +433,6 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
                 </p>
               )}
             </div>
-
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-start">
                 <svg
@@ -212,11 +455,10 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
                 </div>
               </div>
             </div>
-
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center">
@@ -270,7 +512,6 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Message Encrypted Successfully!</h2>
               <p className="text-gray-600">Your message has been securely encrypted and saved.</p>
             </div>
-
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -288,19 +529,18 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
                 <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
                 <p className="text-sm text-gray-900">{new Date(encryptedMessage.createdAt).toLocaleString()}</p>
               </div>
-            </div>
-
+            </div>{' '}
             <div className="flex space-x-3 mt-6">
-              <button onClick={() => setEncryptedMessage(null)} className="flex-1 btn-primary">
+              <button
+                onClick={() => setEncryptedMessage(null)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
+              >
                 Encrypt Another Message
               </button>
-              <a href="/messages" className="flex-1 btn-secondary text-center">
-                View All Messages
-              </a>
             </div>
           </div>
         </div>
-      )}
+      )}{' '}
     </div>
   );
 };
