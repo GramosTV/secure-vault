@@ -1,6 +1,10 @@
 package com.cybersecurity.encryption.service;
 
 import com.cybersecurity.encryption.entity.EncryptedMessage.EncryptionAlgorithm;
+import org.bouncycastle.crypto.engines.ChaCha7539Engine;
+import org.bouncycastle.crypto.params.KeyParameter;
+import org.bouncycastle.crypto.params.ParametersWithIV;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -9,20 +13,23 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 @Service
 public class EncryptionService {
+
+    static {
+        // Add Bouncy Castle provider
+        Security.addProvider(new BouncyCastleProvider());
+    }
 
     public EncryptionResult encrypt(String message, String keyString, EncryptionAlgorithm algorithm) {
         try {
             switch (algorithm) {
                 case AES:
                     return encryptAES(message, keyString);
-                case RSA:
-                    return encryptRSA(message, keyString);
+                case CHACHA20:
+                    return encryptChaCha20(message, keyString);
                 case DES:
                     return encryptDES(message, keyString);
                 default:
@@ -38,8 +45,8 @@ public class EncryptionService {
             switch (algorithm) {
                 case AES:
                     return decryptAES(encryptedContent, keyString, ivString);
-                case RSA:
-                    return decryptRSA(encryptedContent, keyString);
+                case CHACHA20:
+                    return decryptChaCha20(encryptedContent, keyString, ivString);
                 case DES:
                     return decryptDES(encryptedContent, keyString, ivString);
                 default:
@@ -58,7 +65,21 @@ public class EncryptionService {
             keyGenerator.init(256);
             secretKey = keyGenerator.generateKey();
         } else {
-            byte[] keyBytes = Base64.getDecoder().decode(keyString);
+            byte[] keyBytes;
+            try {
+                keyBytes = Base64.getDecoder().decode(keyString);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Invalid key format. The AES key must be Base64 encoded. Error: " + e.getMessage());
+            }
+
+            // Validate AES key length
+            if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
+                throw new IllegalArgumentException(
+                        "Invalid AES key length. AES keys must be 16, 24, or 32 bytes (128, 192, or 256 bits). Provided key is "
+                                + keyBytes.length + " bytes.");
+            }
+
             secretKey = new SecretKeySpec(keyBytes, "AES");
         }
 
@@ -80,9 +101,29 @@ public class EncryptionService {
     }
 
     private String decryptAES(String encryptedContent, String keyString, String ivString) throws Exception {
-        byte[] keyBytes = Base64.getDecoder().decode(keyString);
-        byte[] ivBytes = Base64.getDecoder().decode(ivString);
-        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+        byte[] keyBytes;
+        byte[] ivBytes;
+        byte[] encryptedBytes;
+
+        try {
+            keyBytes = Base64.getDecoder().decode(keyString);
+            ivBytes = Base64.getDecoder().decode(ivString);
+            encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid format for key, IV, or encrypted content. All must be Base64 encoded.");
+        }
+
+        // Validate AES key length
+        if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
+            throw new IllegalArgumentException(
+                    "Invalid AES key length. AES keys must be 16, 24, or 32 bytes (128, 192, or 256 bits). Provided key is "
+                            + keyBytes.length + " bytes.");
+        }
+
+        if (ivBytes.length != 16) {
+            throw new IllegalArgumentException("Invalid IV length. AES IV must be 16 bytes (128 bits).");
+        }
 
         SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
@@ -94,58 +135,124 @@ public class EncryptionService {
         return new String(decryptedBytes);
     }
 
-    private EncryptionResult encryptRSA(String message, String keyString) throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        KeyPair keyPair = keyPairGenerator.generateKeyPair();
+    private EncryptionResult encryptChaCha20(String message, String keyString) throws Exception {
+        // Generate or use provided key
+        byte[] keyBytes;
+        if (keyString == null || keyString.isEmpty()) {
+            // Generate a 32-byte (256-bit) key for ChaCha20
+            SecureRandom random = new SecureRandom();
+            keyBytes = new byte[32];
+            random.nextBytes(keyBytes);
+        } else {
+            try {
+                keyBytes = Base64.getDecoder().decode(keyString);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Invalid key format. The ChaCha20 key must be Base64 encoded. Error: " + e.getMessage());
+            }
 
-        PublicKey publicKey = keyPair.getPublic();
-        PrivateKey privateKey = keyPair.getPrivate();
+            // Validate ChaCha20 key length (must be 32 bytes)
+            if (keyBytes.length != 32) {
+                throw new IllegalArgumentException(
+                        "Invalid ChaCha20 key length. ChaCha20 keys must be exactly 32 bytes (256 bits). Provided key is "
+                                + keyBytes.length + " bytes.");
+            }
+        }
 
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        byte[] encryptedBytes = cipher.doFinal(message.getBytes());
+        // Generate random 12-byte nonce for ChaCha20
+        SecureRandom random = new SecureRandom();
+        byte[] nonce = new byte[12];
+        random.nextBytes(nonce);
+
+        // Use Bouncy Castle ChaCha20 engine directly for better compatibility
+        org.bouncycastle.crypto.engines.ChaCha7539Engine engine = new org.bouncycastle.crypto.engines.ChaCha7539Engine();
+        org.bouncycastle.crypto.params.KeyParameter keyParam = new org.bouncycastle.crypto.params.KeyParameter(
+                keyBytes);
+        org.bouncycastle.crypto.params.ParametersWithIV params = new org.bouncycastle.crypto.params.ParametersWithIV(
+                keyParam, nonce);
+
+        engine.init(true, params); // true for encryption
+
+        byte[] messageBytes = message.getBytes("UTF-8");
+        byte[] encryptedBytes = new byte[messageBytes.length];
+        engine.processBytes(messageBytes, 0, messageBytes.length, encryptedBytes, 0);
 
         return new EncryptionResult(
                 Base64.getEncoder().encodeToString(encryptedBytes),
-                Base64.getEncoder().encodeToString(privateKey.getEncoded()),
-                null // RSA doesn't use IV
-        );
+                Base64.getEncoder().encodeToString(keyBytes),
+                Base64.getEncoder().encodeToString(nonce));
     }
 
-    private String decryptRSA(String encryptedContent, String keyString) throws Exception {
-        byte[] keyBytes = Base64.getDecoder().decode(keyString);
-        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+    private String decryptChaCha20(String encryptedContent, String keyString, String nonceString) throws Exception {
+        byte[] keyBytes;
+        byte[] nonceBytes;
+        byte[] encryptedBytes;
 
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+        try {
+            keyBytes = Base64.getDecoder().decode(keyString);
+            nonceBytes = Base64.getDecoder().decode(nonceString);
+            encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid format for key, nonce, or encrypted content. All must be Base64 encoded.");
+        }
 
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipher.init(Cipher.DECRYPT_MODE, privateKey);
-        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+        // Validate ChaCha20 key length
+        if (keyBytes.length != 32) {
+            throw new IllegalArgumentException(
+                    "Invalid ChaCha20 key length. ChaCha20 keys must be exactly 32 bytes (256 bits). Provided key is "
+                            + keyBytes.length + " bytes.");
+        }
 
-        return new String(decryptedBytes);
+        // Validate nonce length for ChaCha20
+        if (nonceBytes.length != 12) {
+            throw new IllegalArgumentException("Invalid nonce length. ChaCha20 nonce must be 12 bytes (96 bits).");
+        }
+
+        // Use Bouncy Castle ChaCha20 engine directly for better compatibility
+        org.bouncycastle.crypto.engines.ChaCha7539Engine engine = new org.bouncycastle.crypto.engines.ChaCha7539Engine();
+        org.bouncycastle.crypto.params.KeyParameter keyParam = new org.bouncycastle.crypto.params.KeyParameter(
+                keyBytes);
+        org.bouncycastle.crypto.params.ParametersWithIV params = new org.bouncycastle.crypto.params.ParametersWithIV(
+                keyParam, nonceBytes);
+
+        engine.init(false, params); // false for decryption
+
+        byte[] decryptedBytes = new byte[encryptedBytes.length];
+        engine.processBytes(encryptedBytes, 0, encryptedBytes.length, decryptedBytes, 0);
+
+        return new String(decryptedBytes, "UTF-8");
     }
 
     private EncryptionResult encryptDES(String message, String keyString) throws Exception {
-        // Generate or use provided key
         SecretKey secretKey;
         if (keyString == null || keyString.isEmpty()) {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("DES");
             secretKey = keyGenerator.generateKey();
         } else {
-            byte[] keyBytes = Base64.getDecoder().decode(keyString);
+            byte[] keyBytes;
+            try {
+                keyBytes = Base64.getDecoder().decode(keyString);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Invalid key format. The DES key must be Base64 encoded. Error: " + e.getMessage());
+            }
+
+            if (keyBytes.length != 8) {
+                throw new IllegalArgumentException(
+                        "Invalid DES key length. DES keys must be exactly 8 bytes (64 bits). Provided key is "
+                                + keyBytes.length + " bytes.");
+            }
+
             secretKey = new SecretKeySpec(keyBytes, "DES");
         }
 
         // Generate random IV
         SecureRandom random = new SecureRandom();
-        byte[] iv = new byte[8]; // DES uses 8-byte IV
+        byte[] iv = new byte[8];
         random.nextBytes(iv);
         IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-        // Encrypt
         Cipher cipher = Cipher.getInstance("DES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
         byte[] encryptedBytes = cipher.doFinal(message.getBytes());
@@ -157,9 +264,28 @@ public class EncryptionService {
     }
 
     private String decryptDES(String encryptedContent, String keyString, String ivString) throws Exception {
-        byte[] keyBytes = Base64.getDecoder().decode(keyString);
-        byte[] ivBytes = Base64.getDecoder().decode(ivString);
-        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+        byte[] keyBytes;
+        byte[] ivBytes;
+        byte[] encryptedBytes;
+
+        try {
+            keyBytes = Base64.getDecoder().decode(keyString);
+            ivBytes = Base64.getDecoder().decode(ivString);
+            encryptedBytes = Base64.getDecoder().decode(encryptedContent);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid format for key, IV, or encrypted content. All must be Base64 encoded.");
+        }
+
+        if (keyBytes.length != 8) {
+            throw new IllegalArgumentException(
+                    "Invalid DES key length. DES keys must be exactly 8 bytes (64 bits). Provided key is "
+                            + keyBytes.length + " bytes.");
+        }
+
+        if (ivBytes.length != 8) {
+            throw new IllegalArgumentException("Invalid IV length. DES IV must be 8 bytes (64 bits).");
+        }
 
         SecretKey secretKey = new SecretKeySpec(keyBytes, "DES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);

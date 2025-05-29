@@ -9,17 +9,20 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "encrypted_messages")
 public class EncryptedMessage {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank
+    @Column(length = 255)
+    private String title;
+
+    @NotBlank
     @Column(columnDefinition = "TEXT")
     private String encryptedContent;
-
     @NotNull
     @Enumerated(EnumType.STRING)
+    @Column(length = 20)
     private EncryptionAlgorithm algorithm;
 
     @Column(name = "encrypted_key", columnDefinition = "TEXT")
@@ -44,8 +47,9 @@ public class EncryptedMessage {
     public EncryptedMessage() {
     }
 
-    public EncryptedMessage(String encryptedContent, EncryptionAlgorithm algorithm,
+    public EncryptedMessage(String title, String encryptedContent, EncryptionAlgorithm algorithm,
             String encryptedKey, String initializationVector, User user) {
+        this.title = title;
         this.encryptedContent = encryptedContent;
         this.algorithm = algorithm;
         this.encryptedKey = encryptedKey;
@@ -60,6 +64,14 @@ public class EncryptedMessage {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public String getEncryptedContent() {
@@ -111,6 +123,6 @@ public class EncryptedMessage {
     }
 
     public enum EncryptionAlgorithm {
-        AES, RSA, DES
+        AES, CHACHA20, DES
     }
 }

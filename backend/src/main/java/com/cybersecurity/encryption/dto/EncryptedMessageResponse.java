@@ -5,8 +5,8 @@ import com.cybersecurity.encryption.entity.EncryptedMessage.EncryptionAlgorithm;
 import java.time.LocalDateTime;
 
 public class EncryptedMessageResponse {
-
     private Long id;
+    private String title;
     private String encryptedContent;
     private EncryptionAlgorithm algorithm;
     private LocalDateTime createdAt;
@@ -15,9 +15,10 @@ public class EncryptedMessageResponse {
     public EncryptedMessageResponse() {
     }
 
-    public EncryptedMessageResponse(Long id, String encryptedContent,
+    public EncryptedMessageResponse(Long id, String title, String encryptedContent,
             EncryptionAlgorithm algorithm, LocalDateTime createdAt) {
         this.id = id;
+        this.title = title;
         this.encryptedContent = encryptedContent;
         this.algorithm = algorithm;
         this.createdAt = createdAt;
@@ -30,6 +31,14 @@ public class EncryptedMessageResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public String getEncryptedContent() {

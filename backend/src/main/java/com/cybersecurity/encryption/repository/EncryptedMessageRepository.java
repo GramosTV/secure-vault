@@ -12,5 +12,8 @@ public interface EncryptedMessageRepository extends JpaRepository<EncryptedMessa
 
     Page<EncryptedMessage> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
 
+    Page<EncryptedMessage> findByUserAndTitleContainingIgnoreCaseOrderByCreatedAtDesc(User user, String title,
+            Pageable pageable);
+
     Long countByUser(User user);
 }

@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotNull;
 
 public class EncryptionRequest {
 
+    @NotBlank(message = "Title is required")
+    private String title;
+
     @NotBlank(message = "Message is required")
     private String message;
 
@@ -19,13 +22,22 @@ public class EncryptionRequest {
     public EncryptionRequest() {
     }
 
-    public EncryptionRequest(String message, EncryptionAlgorithm algorithm, String key) {
+    public EncryptionRequest(String title, String message, EncryptionAlgorithm algorithm, String key) {
+        this.title = title;
         this.message = message;
         this.algorithm = algorithm;
         this.key = key;
     }
 
     // Getters and Setters
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
     public String getMessage() {
         return message;
     }

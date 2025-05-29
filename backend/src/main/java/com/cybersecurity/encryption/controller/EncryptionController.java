@@ -37,8 +37,8 @@ public class EncryptionController {
                     request.getMessage(),
                     request.getKey(),
                     request.getAlgorithm());
-
             EncryptedMessage message = new EncryptedMessage(
+                    request.getTitle(),
                     result.getEncryptedContent(),
                     request.getAlgorithm(),
                     result.getKey(),
@@ -49,6 +49,7 @@ public class EncryptionController {
 
             EncryptedMessageResponse response = new EncryptedMessageResponse(
                     message.getId(),
+                    message.getTitle(),
                     message.getEncryptedContent(),
                     message.getAlgorithm(),
                     message.getCreatedAt());
@@ -91,15 +92,23 @@ public class EncryptionController {
     @GetMapping("/messages")
     public ResponseEntity<?> getMessages(@RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
             Authentication authentication) {
         try {
             User user = (User) authentication.getPrincipal();
             Pageable pageable = PageRequest.of(page, size);
 
-            Page<EncryptedMessage> messages = messageRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+            Page<EncryptedMessage> messages;
+            if (search != null && !search.trim().isEmpty()) {
+                messages = messageRepository.findByUserAndTitleContainingIgnoreCaseOrderByCreatedAtDesc(user,
+                        search.trim(), pageable);
+            } else {
+                messages = messageRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+            }
 
             Page<EncryptedMessageResponse> response = messages.map(message -> new EncryptedMessageResponse(
                     message.getId(),
+                    message.getTitle(),
                     message.getEncryptedContent(),
                     message.getAlgorithm(),
                     message.getCreatedAt()));
