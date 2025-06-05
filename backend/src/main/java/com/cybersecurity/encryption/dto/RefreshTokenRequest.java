@@ -1,15 +1,12 @@
 package com.cybersecurity.encryption.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuthResponse {
-    private String accessToken;
+public class RefreshTokenRequest {
     private String refreshToken;
-    private String tokenType = "Bearer";
-    private UserResponse user;
 }

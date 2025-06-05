@@ -1,67 +1,19 @@
 package com.cybersecurity.encryption.dto;
 
-import com.cybersecurity.encryption.entity.EncryptedMessage.EncryptionAlgorithm;
+import com.cybersecurity.encryption.entity.EncryptionAlgorithm;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class EncryptedMessageResponse {
     private Long id;
     private String title;
     private String encryptedContent;
     private EncryptionAlgorithm algorithm;
     private LocalDateTime createdAt;
-
-    // Constructors
-    public EncryptedMessageResponse() {
-    }
-
-    public EncryptedMessageResponse(Long id, String title, String encryptedContent,
-            EncryptionAlgorithm algorithm, LocalDateTime createdAt) {
-        this.id = id;
-        this.title = title;
-        this.encryptedContent = encryptedContent;
-        this.algorithm = algorithm;
-        this.createdAt = createdAt;
-    }
-
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getEncryptedContent() {
-        return encryptedContent;
-    }
-
-    public void setEncryptedContent(String encryptedContent) {
-        this.encryptedContent = encryptedContent;
-    }
-
-    public EncryptionAlgorithm getAlgorithm() {
-        return algorithm;
-    }
-
-    public void setAlgorithm(EncryptionAlgorithm algorithm) {
-        this.algorithm = algorithm;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

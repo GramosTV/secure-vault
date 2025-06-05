@@ -1,11 +1,19 @@
 package com.cybersecurity.encryption.service;
 
-import com.cybersecurity.encryption.entity.EncryptedMessage.EncryptionAlgorithm;
+import com.cybersecurity.encryption.dto.*;
+import com.cybersecurity.encryption.entity.EncryptedMessage;
+import com.cybersecurity.encryption.entity.EncryptionAlgorithm;
+import com.cybersecurity.encryption.entity.User;
+import com.cybersecurity.encryption.repository.EncryptedMessageRepository;
 import org.bouncycastle.crypto.engines.ChaCha7539Engine;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -14,6 +22,8 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class EncryptionService {
@@ -22,6 +32,9 @@ public class EncryptionService {
         // Add Bouncy Castle provider
         Security.addProvider(new BouncyCastleProvider());
     }
+
+    @Autowired
+    private EncryptedMessageRepository messageRepository;
 
     public EncryptionResult encrypt(String message, String keyString, EncryptionAlgorithm algorithm) {
         try {
@@ -273,6 +286,81 @@ public class EncryptionService {
         byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
 
         return new String(decryptedBytes);
+    }
+
+    @Transactional
+    public EncryptedMessageResponse createEncryptedMessage(EncryptionRequest request, User user) {
+        EncryptionResult result = encrypt(request.getMessage(), request.getKey(), request.getAlgorithm());
+        EncryptedMessage message = new EncryptedMessage(
+                null,
+                request.getTitle(),
+                result.getEncryptedContent(),
+                request.getAlgorithm(),
+                result.getKey(),
+                result.getInitializationVector(),
+                user,
+                null);
+        message = messageRepository.save(message);
+        return new EncryptedMessageResponse(
+                message.getId(),
+                message.getTitle(),
+                message.getEncryptedContent(),
+                message.getAlgorithm(),
+                message.getCreatedAt());
+    }
+
+    @Transactional(readOnly = true)
+    public String decryptUserMessage(DecryptionRequest request, User user) {
+        EncryptedMessage message = messageRepository.findById(request.getMessageId())
+                .orElseThrow(() -> new RuntimeException("Message not found"));
+        if (!message.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+        return decrypt(
+                message.getEncryptedContent(),
+                request.getKey(),
+                message.getInitializationVector(),
+                message.getAlgorithm());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EncryptedMessageResponse> getUserMessages(User user, Pageable pageable, String search) {
+        Page<EncryptedMessage> messages;
+        if (search != null && !search.trim().isEmpty()) {
+            messages = messageRepository.findByUserAndTitleContainingIgnoreCaseOrderByCreatedAtDesc(user, search.trim(),
+                    pageable);
+        } else {
+            messages = messageRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+        }
+        return messages.map(message -> new EncryptedMessageResponse(
+                message.getId(),
+                message.getTitle(),
+                message.getEncryptedContent(),
+                message.getAlgorithm(),
+                message.getCreatedAt()));
+    }
+
+    @Transactional
+    public void deleteUserMessage(Long id, User user) {
+        EncryptedMessage message = messageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Message not found"));
+        if (!message.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+        messageRepository.delete(message);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getUserStats(User user) {
+        Long messageCount = messageRepository.countByUser(user);
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalMessages", messageCount);
+        stats.put("user", new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getCreatedAt()));
+        return stats;
     }
 
     public static class EncryptionResult {

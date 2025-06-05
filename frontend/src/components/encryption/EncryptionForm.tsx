@@ -12,6 +12,7 @@ import {
   getKeyValidationMessage,
   isValidBase64Key,
 } from '../../utils/encryptionKeys';
+import type { EncryptionAlgorithm } from '../../types/constants';
 
 interface EncryptionFormProps {
   onEncryptionSuccess?: (message: EncryptedMessage) => void;
@@ -33,7 +34,7 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
     getValues,
   } = useForm<EncryptionRequest>({
     defaultValues: {
-      algorithm: 'AES' as const,
+      algorithm: 'AES',
       title: '',
       content: '',
       key: '',
@@ -41,7 +42,7 @@ const EncryptionForm: React.FC<EncryptionFormProps> = ({ onEncryptionSuccess }) 
   });
   const watchedContent = watch('content', '');
   const watchedKey = watch('key', '');
-  const watchedAlgorithm = watch('algorithm', 'AES');
+  const watchedAlgorithm: EncryptionAlgorithm = watch('algorithm', 'AES');
   const contentLength = watchedContent.length;
 
   React.useEffect(() => {

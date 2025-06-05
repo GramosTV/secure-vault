@@ -1,3 +1,5 @@
+import type { EncryptionAlgorithm } from '../types/constants';
+
 export const generateAESKey = (keySize: 128 | 192 | 256 = 256): string => {
   const keyBytes = keySize / 8;
   const key = new Uint8Array(keyBytes);
@@ -161,7 +163,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export const getKeyValidationMessage = (algorithm: 'AES' | 'CHACHA20' | 'DES', key: string): string | null => {
+export const getKeyValidationMessage = (algorithm: EncryptionAlgorithm, key: string): string | null => {
   if (!key.trim()) {
     return 'Key is required';
   }

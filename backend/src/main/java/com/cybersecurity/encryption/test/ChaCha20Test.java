@@ -1,7 +1,7 @@
 package com.cybersecurity.encryption.test;
 
 import com.cybersecurity.encryption.service.EncryptionService;
-import com.cybersecurity.encryption.entity.EncryptedMessage.EncryptionAlgorithm;
+import com.cybersecurity.encryption.entity.EncryptionAlgorithm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;

@@ -1,8 +1,10 @@
+import type { EncryptionAlgorithm, UserRole } from './constants';
+
 export interface User {
   id: number;
   username: string;
   email: string;
-  roles?: string[];
+  roles?: UserRole[];
   createdAt?: string;
 }
 
@@ -38,14 +40,14 @@ export interface EncryptionRequest {
   title: string;
   content: string;
   key: string; // Added encryption key field
-  algorithm: 'AES' | 'CHACHA20' | 'DES';
+  algorithm: EncryptionAlgorithm;
 }
 
 // Backend compatible encryption request
 export interface BackendEncryptionRequest {
   message: string;
   key: string;
-  algorithm: 'AES' | 'CHACHA20' | 'DES';
+  algorithm: EncryptionAlgorithm;
 }
 
 export interface DecryptionRequest {
