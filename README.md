@@ -1,4 +1,4 @@
-# Cybersecurity Lab
+# Secure Vault
 
 A modern encryption application for secure message sharing using industry-standard encryption algorithms.
 
